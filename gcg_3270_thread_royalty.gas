@@ -1,0 +1,410 @@
+Program.Sub.ScreenSU.Start
+gui.SS_Form1..create
+gui.SS_Form1..caption("Thread Royalty")
+gui.SS_Form1..size(4135,1825)
+gui.SS_Form1..position(0,0)
+gui.SS_Form1..event(unload,ss_form1_unload)
+gui.SS_Form1..alwaysontop(False)
+gui.SS_Form1..fontname("Arial")
+gui.SS_Form1..fontsize(8)
+gui.SS_Form1..forecolor(0)
+gui.SS_Form1..fontstyle(,,,,)
+gui.SS_Form1..BackColor(-2147483633)
+gui.SS_Form1..controlbox(True)
+gui.SS_Form1..maxbutton(False)
+gui.SS_Form1..minbutton(False)
+gui.SS_Form1..mousepointer(0)
+gui.SS_Form1..moveable(True)
+gui.SS_Form1..sizeable(False)
+gui.SS_Form1..ShowInTaskBar(True)
+gui.SS_Form1..titlebar(True)
+gui.SS_Form1.lbl_dtpStart.create(label,"Starting Date",True,1800,200,1,100,135,True,0,Arial,8,-2147483633,0)
+gui.SS_Form1.dtpStart.create(datepicker)
+gui.SS_Form1.dtpStart.visible(True)
+gui.SS_Form1.dtpStart.size(1800,345)
+gui.SS_Form1.dtpStart.zorder(0)
+gui.SS_Form1.dtpStart.position(100,335)
+gui.SS_Form1.dtpStart.enabled(True)
+gui.SS_Form1.dtpStart.checkbox(False)
+gui.SS_Form1.lbl_dtpEnd.create(label,"Ending Date",True,1800,200,1,1985,135,True,0,Arial,8,-2147483633,0)
+gui.SS_Form1.dtpEnd.create(datepicker)
+gui.SS_Form1.dtpEnd.visible(True)
+gui.SS_Form1.dtpEnd.size(1800,345)
+gui.SS_Form1.dtpEnd.zorder(0)
+gui.SS_Form1.dtpEnd.position(1985,335)
+gui.SS_Form1.dtpEnd.enabled(True)
+gui.SS_Form1.dtpEnd.checkbox(False)
+gui.SS_Form1.cmdPrint.create(button)
+gui.SS_Form1.cmdPrint.caption("Print")
+gui.SS_Form1.cmdPrint.visible(True)
+gui.SS_Form1.cmdPrint.size(1000,360)
+gui.SS_Form1.cmdPrint.zorder(0)
+gui.SS_Form1.cmdPrint.position(100,850)
+gui.SS_Form1.cmdPrint.enabled(True)
+gui.SS_Form1.cmdPrint.fontname("Arial")
+gui.SS_Form1.cmdPrint.fontsize(8)
+gui.SS_Form1.cmdPrint.event(click,cmdprint_click)
+
+
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass,3500)
+Gui.SS_Form1..Show
+
+Program.Sub.Main.End
+
+program.sub.cmdprint_click.start
+F.Intrinsic.Control.SetErrorHandler("cmdprint_click_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+V.Local.dStart.Declare(Date)
+V.Local.dEnd.Declare(Date)
+V.Local.fPrevQty.Declare(Float)
+V.Local.bPrev.Declare(Boolean)
+V.Local.bPO.Declare(Boolean)
+V.Local.sCustName.Declare(String)
+V.Local.sVendName.Declare(String)
+V.Local.fInvoiceQty.Declare(Float)
+V.Local.sThreadSize.Declare(String)
+V.Local.sThreadType.Declare(String)
+V.Local.bInvoiceQty.Declare(Boolean)
+V.Local.fConnections.Declare(Float)
+V.Local.fRoyalty.Declare(Float)
+V.Local.sReceiver.Declare(String)
+V.Local.dTransDate.Declare(Date)
+
+Gui.SS_Form1..Visible(False)
+F.Intrinsic.String.Concat("Delete GCG_TR_Report where Terminal = '",V.Caller.Terminal,"'",V.Local.sSql)
+F.ODBC.Connection!con.Execute(V.Local.sSql)
+'Grab dates from datepickers
+V.Local.dStart.Set(V.Screen.SS_Form1!dtpStart.Value)
+V.Local.dEnd.Set(V.Screen.SS_Form1!dtpEnd.Value)
+'Getting list of jobs that need to be gone through
+V.Local.sSql.Set("Select JOB, SUFFIX, PART, LOCATION, CUSTOMER from V_JOB_HEADER")
+F.ODBC.Connection!con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+F.Intrinsic.Control.DoUntil(V.ODBC.con!rst.EOF,=,True)
+	'Checking to see if job is a top level job, if not calculating invoice qty to use
+	F.Intrinsic.Control.If(V.ODBC.con!rst.FieldValTrim!SUFFIX,=,"000")
+		V.Local.bInvoiceQty.Set(True)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Control.If(V.ODBC.con!rst.FieldValTrim!SUFFIX,<>,"")
+			F.Intrinsic.String.Concat("Select JOB, SUFFIX, PART, LOCATION from V_JOB_HEADER where JOB = '",V.ODBC.con!rst.FieldValTrim!JOB,"' and SUFFIX = '000'",V.Local.sSql)
+			F.ODBC.Connection!con.OpenLocalRecordsetRO("rstJob",V.Local.sSql)
+			F.Intrinsic.Control.If(V.ODBC.con!rstJob.EOF,=,True)
+				V.Local.bInvoiceQty.Set(True)
+			F.Intrinsic.Control.Else
+				F.Intrinsic.String.Concat("Select QUANTITY from V_BOM_MSTR where PARENT = '",V.ODBC.con!rstJob.FieldValTrim!PART,"' and PART = '",V.ODBC.con!rst.FieldValTrim!JOB,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenLocalRecordsetRO("rstBOM",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rstBOM.EOF,=,True)
+					V.Local.bInvoiceQty.Set(True)
+				F.Intrinsic.Control.Else
+					V.Local.bInvoiceQty.Set(False)
+					V.Local.fInvoiceQty.Set(V.ODBC.con!rstBOM.FieldValFloat!QUANTITY)
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rstBOM.Close
+			F.Intrinsic.Control.EndIf
+			F.ODBC.con!rstJob.Close
+		F.Intrinsic.Control.Else
+			V.Local.bInvoiceQty.Set(True)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+	'Checking to see if job is tied to a sales order that has been invoiced
+	F.Intrinsic.String.Concat("Select INVOICE, ORDER_NO, ORDER_LINE, DATE_INVOICE, ORDER_SUFFIX, QTY_ORDERED  from V_ORDER_HIST_LINE where JOB = '",V.ODBC.con!rst.FieldValTrim!JOB,"' and SUFFIX = '",V.ODBC.con!rst.FieldValTrim!SUFFIX,"' and DATE_INVOICE between '",V.Local.dStart.PervasiveDate,"' and '",V.Local.dEnd.PervasiveDate,"'",V.Local.sSql)
+	F.ODBC.Connection!con.OpenLocalRecordsetRO("rstOrd",V.Local.sSql)
+	F.Intrinsic.Control.If(V.ODBC.con!rstOrd.EOF,=,False)
+		'Calculating invoice quantity based on job being top level, lower leve, or neither
+		F.Intrinsic.Control.If(V.Local.bInvoiceQty,=,False)
+			F.Intrinsic.Math.Mult(V.Local.fInvoiceQty,V.ODBC.con!rstOrd.FieldValFloat!QTY_ORDERED,V.Local.fInvoiceQty)
+		F.Intrinsic.Control.Else
+			V.Local.fInvoiceQty.Set(V.ODBC.con!rstOrd.FieldValFloat!QTY_ORDERED)
+		F.Intrinsic.Control.EndIf
+		'Getting Royalty PO tied to PART
+		F.Intrinsic.String.Concat("Select PURCHASE_ORDER, RECORD_NO, PART, DESCRIPTION, COST  from V_PO_LINES where JOB = '",V.ODBC.con!rst.FieldValTrim!JOB,"' and SUFFIX = '",V.ODBC.con!rst.FieldValTrim!SUFFIX,"' and PART like 'RY%'",V.Local.sSql)
+		F.ODBC.Connection!con.OpenLocalRecordsetRO("rstPO",V.Local.sSql)
+		F.Intrinsic.Control.If(V.ODBC.con!rstPO.EOF,=,False)
+			'Calculate number of connections
+			F.Intrinsic.String.Concat("Select HOURS_ESTIMATED from V_JOB_OPERATIONS where JOB = '",V.ODBC.con!rst.FieldValTrim!JOB,"' and SUFFIX = '",V.ODBC.con!rst.FieldValTrim!SUFFIX,"' and PART = '",V.ODBC.con!rstPO.FieldValTrim!PART,"'",V.Local.sSql)
+			F.ODBC.Connection!con.OpenLocalRecordsetRO("rstOper",V.Local.sSql)
+			F.Intrinsic.Control.If(V.ODBC.con!rstOper.EOF,=,False)
+				F.Intrinsic.Math.Mult(V.ODBC.con!rstOper.FieldValFloat!HOURS_ESTIMATED,V.Local.fInvoiceQty,V.Local.fConnections)
+				'Calculate royalty due
+				F.Intrinsic.Math.Mult(V.Local.fConnections,V.ODBC.con!rstPO.FieldValFloat!COST,V.Local.fRoyalty)
+				'Getting vendor name from pay to record
+				F.Intrinsic.String.Concat("Select NAME_VENDOR_PAY from V_PO_PAY_TO where PURCHASE_ORDER = '",V.ODBC.con!rstPO.FieldValTrim!PURCHASE_ORDER,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenLocalRecordsetRO("rstVend",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rstVend.EOF,=,True)
+					V.Local.sVendName.Set("")
+				F.Intrinsic.Control.Else
+					V.Local.sVendName.Set(V.ODBC.con!rstVend.FieldValTrim!NAME_VENDOR_PAY)
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rstVend.Close
+				'Get receiver number for purchase order
+				F.Intrinsic.String.Concat("Select RECEIVER_NO from PO_RECEIVER where PURCHASE_ORDER = '",V.ODBC.con!rstPO.FieldValTrim!PURCHASE_ORDER,"' and PO_LINE = '",V.ODBC.con!rstPO.FieldValTrim!RECORD_NO,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenLocalRecordsetRO("rstRcvr",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rstRcvr.EOF,=,True)
+					V.Local.sReceiver.Set("")
+				F.Intrinsic.Control.Else
+					V.Local.sReceiver.Set(V.ODBC.con!rstRcvr.FieldValTrim!RECEIVER_NO)
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rstRcvr.Close
+				'Getting thread size and type from inventory alt description 2 and 1 respectively
+				F.Intrinsic.String.Concat("Select DESCRIPTION_2, DESCRIPTION_3 from V_INVENTORY_MST2 where PART = '",V.ODBC.con!rstPO.FieldValTrim!PART,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenLocalRecordsetRO("rstInv",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rstInv.EOF,=,True)
+					V.Local.sThreadSize.Set("")
+					V.Local.sThreadType.Set("")
+				F.Intrinsic.Control.Else
+					V.Local.sThreadSize.Set(V.ODBC.con!rstInv.FieldValTrim!DESCRIPTION_3)
+					V.Local.sThreadType.Set(V.ODBC.con!rstInv.FieldValTrim!DESCRIPTION_2)
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rstInv.Close
+				'Getting customer name from order header
+				F.Intrinsic.String.Concat("Select NAME_CUSTOMER from ORDER_HIST_HEAD where ORDER_NO = '",V.ODBC.con!rstOrd.FieldValTrim!ORDER_NO,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenLocalRecordsetRO("rstCust",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rstCust.EOF,=,True)
+					V.Local.sCustName.Set("")
+				F.Intrinsic.Control.Else
+					V.Local.sCustName.Set(V.ODBC.con!rstCust.FieldValTrim!NAME_CUSTOMER)
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rstCust.Close
+				'Checking to see if invoice has already been recorded before and getting previous recorded qty
+				F.Intrinsic.String.Concat("Select * from GCG_3270_TR_PreviouswhereINVOICE='",V.ODBC.con!rstOrd.FieldValTrim!INVOICE,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenLocalRecordsetRW("rstPrev",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rstPrev.EOF,=,True)
+					V.Local.bPrev.Set(False)
+					V.Local.fPrevQty.Set(0)
+				F.Intrinsic.Control.Else
+					V.Local.bPrev.Set(True)
+					V.Local.fPrevQty.Set(V.ODBC.con!rstPrev.FieldValFloat!Connections)
+				F.Intrinsic.Control.EndIf
+				'Adding record to report table
+				V.Local.sSql.Set("Select * from GCG_3270_TR_Report")
+				F.ODBC.Connection!con.OpenLocalRecordsetRW("rstRep",V.Local.sSql)
+				F.ODBC.con!rstRep.AddNew
+				F.ODBC.con!rstRep.Set!Terminal(V.Caller.Terminal)
+				F.ODBC.con!rstRep.Set!Location(V.ODBC.con!rst.FieldValTrim!LOCATION)
+				F.ODBC.con!rstRep.Set!Customer_Name(V.Local.sCustName)
+				F.ODBC.con!rstRep.Set!Job(V.ODBC.con!rst.FieldValTrim!JOB)
+				F.ODBC.con!rstRep.Set!Suffix(V.ODBC.con!rst.FieldValTrim!SUFFIX)
+				F.ODBC.con!rstRep.Set!Order_Number(V.ODBC.con!rstOrd.FieldValTrim!ORDER_NO)
+				F.ODBC.con!rstRep.Set!Order_Line(V.ODBC.con!rstOrd.FieldValTrim!ORDER_LINE)
+				F.ODBC.con!rstRep.Set!Vendor_Name(V.Local.sVendName)
+				F.ODBC.con!rstRep.Set!PO_Part(V.ODBC.con!rstPO.FieldValTrim!PART)
+				F.ODBC.con!rstRep.Set!PO_Part_Description(V.ODBC.con!rstPO.FieldValTrim!DESCRIPTION)
+				F.ODBC.con!rstRep.Set!Thread_Type(V.Local.sThreadType)
+				F.ODBC.con!rstRep.Set!Thread_Size(V.Local.sThreadSize)
+				F.ODBC.con!rstRep.Set!Connections(V.Local.fConnections)
+				F.ODBC.con!rstRep.Set!PO_Cost(V.ODBC.con!rstPO.FieldValFloat!COST)
+				F.ODBC.con!rstRep.Set!Royalty_Due(V.Local.fRoyalty)
+				F.ODBC.con!rstRep.Set!Invoice(V.ODBC.con!rstOrd.FieldValTrim!INVOICE)
+				F.ODBC.con!rstRep.Set!Transaction_Date(V.ODBC.con!rstOrd.FieldVal!DATE_INVOICE)
+				F.ODBC.con!rstRep.Set!Joints(V.Local.fInvoiceQty)
+				F.ODBC.con!rstRep.Set!Receiver_Number(V.Local.sReceiver)
+				F.ODBC.con!rstRep.Set!Previously_Reported(V.Local.fPrevQty)
+				F.ODBC.con!rstRep.Update
+				F.ODBC.con!rstRep.Close
+				F.Intrinsic.Control.If(V.Local.bPrev,=,False)
+					F.ODBC.con!rstPrev.AddNew
+					F.ODBC.con!rstPrev.Set!PO_Number(V.ODBC.con!rstPO.FieldValTrim!PURCHASE_ORDER)
+					F.ODBC.con!rstPrev.Set!PO_Line(V.ODBC.con!rstPO.FieldValTrim!RECORD_NO)
+					F.ODBC.con!rstPrev.Set!Invoice(V.ODBC.con!rstOrd.FieldValTrim!INVOICE)
+					F.ODBC.con!rstPrev.Set!Transaction_Date(V.ODBC.con!rstOrd.FieldVal!DATE_INVOICE)
+					F.ODBC.con!rstPrev.Set!Connections(V.Local.fConnections)
+					F.ODBC.con!rstPrev.Update
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rstPrev.Close
+			F.Intrinsic.Control.EndIf
+			F.ODBC.con!rstOper.Close
+		F.Intrinsic.Control.EndIf
+		F.ODBC.con!rstPO.Close
+	F.Intrinsic.Control.Else
+		'Since job is not tied to a order, grabbing records from inventory history
+		F.Intrinsic.String.Concat("Select DATE_HISTORY, QUANTITY  from V_INVENTORY_HIST where JOB = '",V.ODBC.con!rst.FieldValTrim!JOB,"' and SUFFIX = '",V.ODBC.con!rst.FieldValTrim!SUFFIX,"' and DATE_HISTORY between '",V.Local.dStart.PervasiveDate,"' and '",V.Local.dEnd.PervasiveDate,"'",V.Local.sSql)
+		F.ODBC.Connection!con.OpenLocalRecordsetRO("rstInvH",V.Local.sSql)
+		F.Intrinsic.Control.If(V.ODBC.con!rstInvH.EOF,=,False)
+			'Calculating invoice quantity based on job being top level, lower leve, or neither
+			F.Intrinsic.Control.If(V.Local.bInvoiceQty,=,False)
+				F.Intrinsic.Math.Mult(V.Local.fInvoiceQty,V.ODBC.con!rstInvH.FieldValFloat!QUANTITY,V.Local.fInvoiceQty)
+			F.Intrinsic.Control.Else
+				V.Local.fInvoiceQty.Set(V.ODBC.con!rstInvH.FieldValFloat!QUANTITY)
+			F.Intrinsic.Control.EndIf
+			'Getting Royalty PO tied to PART
+			F.Intrinsic.String.Concat("Select PURCHASE_ORDER, RECORD_NO, PART, DESCRIPTION, COST  from V_PO_LINES where JOB = '",V.ODBC.con!rst.FieldValTrim!JOB,"' and SUFFIX = '",V.ODBC.con!rst.FieldValTrim!SUFFIX,"' and PART like 'RY%'",V.Local.sSql)
+			F.ODBC.Connection!con.OpenLocalRecordsetRO("rstPO",V.Local.sSql)
+			F.Intrinsic.Control.If(V.ODBC.con!rstPO.EOF,=,False)
+				'Calculate number of connections
+				F.Intrinsic.String.Concat("Select HOURS_ESTIMATED from V_JOB_OPERATIONS where JOB = '",V.ODBC.con!rst.FieldValTrim!JOB,"' and SUFFIX = '",V.ODBC.con!rst.FieldValTrim!SUFFIX,"' and PART = '",V.ODBC.con!rstPO.FieldValTrim!PART,"'",V.Local.sSql)
+				F.ODBC.Connection!con.OpenLocalRecordsetRO("rstOper",V.Local.sSql)
+				F.Intrinsic.Control.If(V.ODBC.con!rstOper.EOF,=,False)
+					F.Intrinsic.Math.Mult(V.ODBC.con!rstOper.FieldValFloat!HOURS_ESTIMATED,V.Local.fInvoiceQty,V.Local.fConnections)
+					'Calculating royalty due
+					F.Intrinsic.Math.Mult(V.Local.fConnections,V.ODBC.con!rstPO.FieldValFloat!COST,V.Local.fRoyalty)
+					'Getting vendor name from pay to record
+					F.Intrinsic.String.Concat("Select NAME_VENDOR_PAY from V_PO_PAY_TO where PURCHASE_ORDER = '",V.ODBC.con!rstPO.FieldValTrim!PURCHASE_ORDER,"'",V.Local.sSql)
+					F.ODBC.Connection!con.OpenLocalRecordsetRO("rstVend",V.Local.sSql)
+					F.Intrinsic.Control.If(V.ODBC.con!rstVend.EOF,=,True)
+						V.Local.sVendName.Set("")
+					F.Intrinsic.Control.Else
+						V.Local.sVendName.Set(V.ODBC.con!rstVend.FieldValTrim!NAME_VENDOR_PAY)
+					F.Intrinsic.Control.EndIf
+					F.ODBC.con!rstVend.Close
+					'Get receiver number for purchase order
+					F.Intrinsic.String.Concat("Select RECEIVER_NO from PO_RECEIVER where PURCHASE_ORDER = '",V.ODBC.con!rstPO.FieldValTrim!PURCHASE_ORDER,"' and PO_LINE = '",V.ODBC.con!rstPO.FieldValTrim!RECORD_NO,"'",V.Local.sSql)
+					F.ODBC.Connection!con.OpenLocalRecordsetRO("rstRcvr",V.Local.sSql)
+					F.Intrinsic.Control.If(V.ODBC.con!rstRcvr.EOF,=,True)
+						V.Local.sReceiver.Set("")
+					F.Intrinsic.Control.Else
+						V.Local.sReceiver.Set(V.ODBC.con!rstRcvr.FieldValTrim!RECEIVER_NO)
+					F.Intrinsic.Control.EndIf
+					F.ODBC.con!rstRcvr.Close
+					'Getting thread size and type from inventory alt description 2 and 1 respectively
+					F.Intrinsic.String.Concat("Select DESCRIPTION_2, DESCRIPTION_3 from V_INVENTORY_MST2 where PART = '",V.ODBC.con!rstPO.FieldValTrim!PART,"'",V.Local.sSql)
+					F.ODBC.Connection!con.OpenLocalRecordsetRO("rstInv",V.Local.sSql)
+					F.Intrinsic.Control.If(V.ODBC.con!rstInv.EOF,=,True)
+						V.Local.sThreadSize.Set("")
+						V.Local.sThreadType.Set("")
+					F.Intrinsic.Control.Else
+						V.Local.sThreadSize.Set(V.ODBC.con!rstInv.FieldValTrim!DESCRIPTION_3)
+						V.Local.sThreadType.Set(V.ODBC.con!rstInv.FieldValTrim!DESCRIPTION_2)
+					F.Intrinsic.Control.EndIf
+					F.ODBC.con!rstInv.Close
+					'Getting customer name from customer master
+					F.Intrinsic.String.Concat("Select NAME_CUSTOMER from V_CUSTOMER_MASTER where CUSTOMER = '",V.ODBC.con!rst.FieldValTrim!CUSTOMER,"'",V.Local.sSql)
+					F.ODBC.Connection!con.OpenLocalRecordsetRO("rstCust",V.Local.sSql)
+					F.Intrinsic.Control.If(V.ODBC.con!rstCust.EOF,=,True)
+						V.Local.sCustName.Set("")
+					F.Intrinsic.Control.Else
+						V.Local.sCustName.Set(V.ODBC.con!rstCust.FieldValTrim!NAME_CUSTOMER)
+					F.Intrinsic.Control.EndIf
+					F.ODBC.con!rstCust.Close
+					'Checking to see if invoice has already been recorded before and getting previous recorded qty
+					V.Local.dTransDate.Set(V.ODBC.con!rstInvH.FieldVal!DATE_HISTORY)
+					F.Intrinsic.String.Concat("Select * from GCG_3270_TR_Previous where Transaction_Date = '",V.Local.dTransDate.PervasiveDate,"'",V.Local.sSql)
+					F.ODBC.Connection!con.OpenLocalRecordsetRW("rstPrev",V.Local.sSql)
+					F.Intrinsic.Control.If(V.ODBC.con!rstPrev.EOF,=,True)
+						V.Local.bPrev.Set(False)
+						V.Local.fPrevQty.Set(0)
+					F.Intrinsic.Control.Else
+						V.Local.bPrev.Set(True)
+						V.Local.fPrevQty.Set(V.ODBC.con!rstPrev.FieldValFloat!Connections)
+					F.Intrinsic.Control.EndIf
+					'Adding record to report table
+					V.Local.sSql.Set("Select * from GCG_3270_TR_Report")
+					F.ODBC.Connection!con.OpenLocalRecordsetRW("rstRep",V.Local.sSql)
+					F.ODBC.con!rstRep.AddNew
+					F.ODBC.con!rstRep.Set!Terminal(V.Caller.Terminal)
+					F.ODBC.con!rstRep.Set!Location(V.ODBC.con!rst.FieldValTrim!LOCATION)
+					F.ODBC.con!rstRep.Set!Customer_Name(V.Local.sCustName)
+					F.ODBC.con!rstRep.Set!Job(V.ODBC.con!rst.FieldValTrim!JOB)
+					F.ODBC.con!rstRep.Set!Suffix(V.ODBC.con!rst.FieldValTrim!SUFFIX)
+					F.ODBC.con!rstRep.Set!Order_Number("")
+					F.ODBC.con!rstRep.Set!Order_Line("")
+					F.ODBC.con!rstRep.Set!Vendor_Name(V.Local.sVendName)
+					F.ODBC.con!rstRep.Set!PO_Part(V.ODBC.con!rstPO.FieldValTrim!PART)
+					F.ODBC.con!rstRep.Set!PO_Part_Description(V.ODBC.con!rstPO.FieldValTrim!DESCRIPTION)
+					F.ODBC.con!rstRep.Set!Thread_Type(V.Local.sThreadType)
+					F.ODBC.con!rstRep.Set!Thread_Size(V.Local.sThreadSize)
+					F.ODBC.con!rstRep.Set!Connections(V.Local.fConnections)
+					F.ODBC.con!rstRep.Set!PO_Cost(V.ODBC.con!rstPO.FieldValFloat!COST)
+					F.ODBC.con!rstRep.Set!Royalty_Due(V.Local.fRoyalty)
+					F.ODBC.con!rstRep.Set!Invoice("")
+					F.ODBC.con!rstRep.Set!Transaction_Date(V.ODBC.con!rstInvH.FieldVal!DATE_HISTORY)
+					F.ODBC.con!rstRep.Set!Joints(V.Local.fInvoiceQty)
+					F.ODBC.con!rstRep.Set!Receiver_Number(V.Local.sReceiver)
+					F.ODBC.con!rstRep.Set!Previously_Reported(V.Local.fPrevQty)
+					F.ODBC.con!rstRep.Update
+					F.ODBC.con!rstRep.Close
+					F.Intrinsic.Control.If(V.Local.bPrev,=,False)
+						F.ODBC.con!rstPrev.AddNew
+						F.ODBC.con!rstPrev.Set!PO_Number(V.ODBC.con!rstPO.FieldValTrim!PURCHASE_ORDER)
+						F.ODBC.con!rstPrev.Set!PO_Line(V.ODBC.con!rstPO.FieldValTrim!RECORD_NO)
+						F.ODBC.con!rstPrev.Set!Invoice("")
+						F.ODBC.con!rstPrev.Set!Transaction_Date(V.ODBC.con!rstInvH.FieldVal!DATE_HISTORY)
+						F.ODBC.con!rstPrev.Set!Connections(V.Local.fConnections)
+						F.ODBC.con!rstPrev.Update
+					F.Intrinsic.Control.EndIf
+					F.ODBC.con!rstPrev.Close
+				F.Intrinsic.Control.EndIf
+				F.ODBC.con!rstOper.Close
+			F.Intrinsic.Control.EndIf
+			F.ODBC.con!rstPO.Close
+		F.Intrinsic.Control.EndIf
+		F.ODBC.con!rstInvH.Close
+	F.Intrinsic.Control.EndIf
+	F.ODBC.con!rstOrd.Close
+	F.ODBC.con!rst.MoveNext
+F.Intrinsic.Control.Loop
+F.ODBC.con!rst.Close
+F.Intrinsic.Control.CallSub(Callbi)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdprint_click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Thread_Royalty.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Ss_form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+program.sub.cmdprint_click.end
+
+program.sub.ss_form1_unload.start
+F.ODBC.Connection!con.Close
+F.Intrinsic.Control.End
+
+program.sub.ss_form1_unload.end
+
+Program.Sub.CallBI.Start
+F.Intrinsic.Control.SetErrorHandler("CallBI_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sParam.Declare(String)
+V.Local.sParamVal.Declare(String)
+V.Local.sStart.Declare(String)
+V.Local.sEnd.Declare(String)
+V.Local.iBI.Declare(Long)
+
+V.Local.sStart.Set(V.Screen.SS_Form1!dtpStart.Value)
+V.Local.sEnd.Set(V.Screen.SS_Form1!dtpEnd.Value)
+V.Local.sParam.Set("Terminal*!*StartDate*!*EndDate")
+F.Intrinsic.String.Split(V.Local.sParam,"*!*",V.Local.sParam)
+F.Intrinsic.String.Concat(V.Caller.Terminal,"*!*",V.Local.sStart,"*!*",V.Local.sEnd,V.Local.sParamVal)
+F.Intrinsic.String.Split(V.Local.sParamVal,"*!*",V.Local.sParamVal)
+F.Global.BI.GetIDFromName("GCG_3270_TR_Report.rpt",V.Local.iBI)
+F.Global.BI.PrintReport(V.Local.iBI,0,V.Local.sParam,V.Local.sParamVal,"",False)
+F.Intrinsic.Control.CallSub(Ss_form1_unload)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CallBI_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_Thread_Royalty.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Ss_form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CallBI.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_Thread_Royalty$}$MLA$}$1/27/2012
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$K&B Machine
+Quote: 3070
+Program.Sub.Comments.End
+Program.Sub.ScreenSS.Start
+SS_Form1{{CAPTION::Thread Royalty
+SS_Form1.CTRL{{NAME::dtpStart\\TYPE::6\\CAPTION::Starting Date\\GROUP::1\\BROWSER::0\\SIZE::1
+SS_Form1.CTRL{{NAME::dtpEnd\\TYPE::6\\CAPTION::Ending Date\\GROUP::1\\BROWSER::0\\SIZE::1
+SS_Form1.CTRL{{NAME::cmdPrint\\TYPE::5\\CAPTION::Print\\GROUP::-1\\BROWSER::0\\SIZE::1
+
+Program.Sub.ScreenSS.End
+
